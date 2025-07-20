@@ -9,7 +9,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Load API keys from environment variables only
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 WEATHERAPI_KEY = os.getenv('WEATHERAPI_KEY')
 
@@ -18,7 +17,7 @@ if not OPENAI_API_KEY or not WEATHERAPI_KEY:
 
 openai.api_key = OPENAI_API_KEY
 
-# Helper: Get location from IP using ip-api.com
+# get location from IP using ip-api.com
 def get_location_from_ip(ip):
     try:
         resp = requests.get(f'https://ipapi.co/{ip}/json/')
@@ -29,7 +28,7 @@ def get_location_from_ip(ip):
         pass
     return None, None, None
 
-# Helper: Get weather from WeatherAPI
+# get weather from WeatherAPI
 def get_weather(city):
     url = f'http://api.weatherapi.com/v1/current.json?key={WEATHERAPI_KEY}&q={city}'
     resp = requests.get(url)
@@ -45,9 +44,21 @@ def chat():
     conversation_history = data.get('history', [])
     user_ip = data.get('user_ip', '')  # Get IP from frontend
 
+    # Get user's location and weather automatically
+    city, region, country = get_location_from_ip(user_ip)
+    weather_info = ""
+    if city:
+        weather = get_weather(city)
+        if weather:
+            weather_info = f"Current weather in {city}, {region}, {country}: {weather['current']['temp_c']}°C and {weather['current']['condition']['text']}."
+        else:
+            weather_info = f"Location detected: {city}, {region}, {country}. Weather data unavailable."
+    else:
+        weather_info = "Unable to determine your location."
+
     # Build conversation context
     messages = [
-        {"role": "system", "content": "You are a helpful weather assistant."}
+        {"role": "system", "content": f"You are a helpful weather assistant. User's current location and weather: {weather_info}"}
     ]
     # Add conversation history (last 10 messages)
     for msg in conversation_history[-10:]:
@@ -55,20 +66,6 @@ def chat():
         messages.append({"role": role, "content": msg["text"]})
     # Add current message
     messages.append({"role": "user", "content": user_message})
-
-    # Check if user asks for weather in their location
-    if 'weather' in user_message.lower() and 'my location' in user_message.lower():
-        city, region, country = get_location_from_ip(user_ip)
-        if city:
-            weather = get_weather(city)
-            if weather:
-                weather_text = f"It's {weather['current']['temp_c']}°C and {weather['current']['condition']['text']} in {city}, {region}, {country}."
-            else:
-                weather_text = "Sorry, I couldn't fetch the weather for your location."
-        else:
-            weather_text = "Sorry, I couldn't determine your location."
-        # Add weather info as a system message for context
-        messages.append({"role": "system", "content": f"Weather info: {weather_text}"})
 
     response = openai.chat.completions.create(
         model="gpt-3.5-turbo",
