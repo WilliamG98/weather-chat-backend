@@ -18,16 +18,6 @@ if not OPENAI_API_KEY or not WEATHERAPI_KEY:
 
 openai.api_key = OPENAI_API_KEY
 
-# Helper: Get the User's Public IP
-def get_public_ip():
-    try:
-        resp = requests.get('https://ipapi.co/ip/')
-        if resp.status_code == 200:
-            return resp.text.strip()
-    except Exception:
-        pass
-    return None
-
 # Helper: Get location from IP using ip-api.com
 def get_location_from_ip(ip):
     try:
@@ -53,7 +43,7 @@ def chat():
     data = request.json
     user_message = data.get('message', '')
     conversation_history = data.get('history', [])
-    user_ip = get_public_ip()
+    user_ip = data.get('user_ip', '')  # Get IP from frontend
 
     # Build conversation context
     messages = [
