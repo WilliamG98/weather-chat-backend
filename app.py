@@ -52,7 +52,19 @@ def get_weather(city):
 def chat():
     data = request.json
     user_message = data.get('message', '')
+    conversation_history = data.get('history', [])
     user_ip = get_public_ip()
+
+    # Build conversation context
+    messages = [
+        {"role": "system", "content": "You are a helpful weather assistant."}
+    ]
+    # Add conversation history (last 10 messages)
+    for msg in conversation_history[-10:]:
+        role = "user" if msg["sender"] == "user" else "assistant"
+        messages.append({"role": role, "content": msg["text"]})
+    # Add current message
+    messages.append({"role": "user", "content": user_message})
 
     # Check if user asks for weather in their location
     if 'weather' in user_message.lower() and 'my location' in user_message.lower():
@@ -65,26 +77,15 @@ def chat():
                 weather_text = "Sorry, I couldn't fetch the weather for your location."
         else:
             weather_text = "Sorry, I couldn't determine your location."
-        # Use OpenAI to make the response conversational
-        prompt = f"User asked: '{user_message}'. Weather info: {weather_text}. Respond conversationally as a helpful assistant."
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful weather assistant."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        reply = response.choices[0].message.content
-        return jsonify({"response": reply})
-    else:
-        # For other messages, just use OpenAI
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": "You are a helpful weather assistant."},
-                      {"role": "user", "content": user_message}]
-        )
-        reply = response.choices[0].message.content
-        return jsonify({"response": reply})
+        # Add weather info as a system message for context
+        messages.append({"role": "system", "content": f"Weather info: {weather_text}"})
+
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages
+    )
+    reply = response.choices[0].message.content
+    return jsonify({"response": reply})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True) 
